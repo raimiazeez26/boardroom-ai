@@ -9,7 +9,10 @@ This project is designed as a portfolio-ready automation system for founders, co
 ## Live Demo
 
 **Telegram bot**
-`t.me/boardroom_ai_advisor_bot`
+
+[//]: # (`t.me/boardroom_ai_advisor_bot`)
+[![Boardroom AI](https://img.shields.io/badge/TEST%20WORKFLOW-Open%20Demo-brightgreen?style=for-the-badge)](https://t.me/boardroom_ai_advisor_bot)
+
 
 [//]: # (**Demo video**)
 
@@ -362,11 +365,3 @@ Data Scientist, Python Developer and AI Automation Engineer.
 ## Disclaimer
 
 Boardroom AI provides automated advisory analysis for educational, portfolio, and decision-support use. The generated recommendations do not constitute professional financial, legal, investment, or regulatory advice.
-
-
-.\scripts\push-to-github.ps1 `
-  -RepoUrl "https://github.com/raimiazeez26/boardroom-ai.git" `
-  -CommitMessage "feat: publish boardroom ai project"
-
-git remote add origin https://github.com/raimiazeez26/boardroom-ai.git
-git push -u origin main
