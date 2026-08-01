@@ -1,0 +1,55 @@
+{
+  "type": "object",
+  "properties": {
+    "request_type": {
+      "type": "string"
+    },
+    "analysis_depth": {
+      "type": "string",
+      "enum": ["quick", "standard", "deep"]
+    },
+    "problem_summary": {
+      "type": "string"
+    },
+    "selected_agents": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["market", "strategy", "finance", "risk"]
+      }
+    },
+    "agent_tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "agent_type": {
+            "type": "string",
+            "enum": ["market", "strategy", "finance", "risk"]
+          },
+          "objective": {
+            "type": "string"
+          }
+        },
+        "required": ["agent_type", "objective"],
+        "additionalProperties": false
+      }
+    },
+    "key_context": {
+      "type": "string"
+    },
+    "expected_output": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "request_type",
+    "analysis_depth",
+    "problem_summary",
+    "selected_agents",
+    "agent_tasks",
+    "key_context",
+    "expected_output"
+  ],
+  "additionalProperties": false
+}

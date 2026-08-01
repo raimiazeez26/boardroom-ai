@@ -1,0 +1,8 @@
+N8N_PORT=5678
+GENERIC_TIMEZONE=Africa/Lagos
+TZ=Africa/Lagos
+WEBHOOK_URL=https://your-public-https-url.example.com/
+N8N_EDITOR_BASE_URL=https://your-public-https-url.example.com/
+N8N_PROXY_HOPS=1
+N8N_ENCRYPTION_KEY=replace-with-a-long-random-string
+N8N_RUNNERS_AUTH_TOKEN=replace-with-a-long-random-string

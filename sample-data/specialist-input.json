@@ -1,0 +1,10 @@
+{
+  "conversation_id": "BRD-20260731110530-123456789",
+  "agent_type": "finance",
+  "agent_name": "Financial Analyst",
+  "agent_objective": "Assess pricing, delivery costs and profitability.",
+  "user_request": "Help me price an AI automation service.",
+  "request_type": "pricing_strategy",
+  "analysis_depth": "quick",
+  "context": "The target customers are small Nigerian businesses."
+}

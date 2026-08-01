@@ -1,0 +1,31 @@
+{
+  "request_type": "market_entry",
+  "analysis_depth": "deep",
+  "problem_summary": "The user wants a structured review of a home cleaning marketplace opportunity in Lagos.",
+  "selected_agents": [
+    "market",
+    "strategy",
+    "finance",
+    "risk"
+  ],
+  "agent_tasks": [
+    {
+      "agent_type": "market",
+      "objective": "Assess demand, target users and competitive positioning."
+    },
+    {
+      "agent_type": "strategy",
+      "objective": "Evaluate the launch model and operating strategy."
+    },
+    {
+      "agent_type": "finance",
+      "objective": "Assess pricing logic, margins and core assumptions."
+    },
+    {
+      "agent_type": "risk",
+      "objective": "Identify failure points, execution risks and mitigations."
+    }
+  ],
+  "key_context": "The business would launch in Lagos and initially target working professionals.",
+  "expected_output": "A concise boardroom recommendation with risks, commercial guidance and next steps."
+}

@@ -1,0 +1,18 @@
+{
+  "message": {
+    "message_id": 101,
+    "from": {
+      "id": 123456789,
+      "is_bot": false,
+      "first_name": "Demo",
+      "username": "demo_founder"
+    },
+    "chat": {
+      "id": 123456789,
+      "type": "private",
+      "username": "demo_founder"
+    },
+    "date": 1785500000,
+    "text": "/deep I want to build a home cleaning marketplace for working professionals in Lagos. Analyse demand, competition, pricing, risks and launch strategy."
+  }
+}

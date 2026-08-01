@@ -1,0 +1,19 @@
+{
+  "executive_summary": "The pricing model should start with clearly separated packages and a limited delivery scope.",
+  "key_findings": [
+    "Customers need clarity on service boundaries and outcomes.",
+    "Margins depend heavily on delivery cost discipline and partner reliability."
+  ],
+  "recommendations": [
+    "Start with simple package pricing.",
+    "Define strict service zones before expansion."
+  ],
+  "key_assumptions": [
+    "Customer demand is concentrated in a few early-adopter neighborhoods."
+  ],
+  "critical_questions": [
+    "What repeat-usage rate is needed for healthy margins?"
+  ],
+  "strongest_insight": "Operational simplicity matters more than city-wide scale in the early stage.",
+  "confidence": 84
+}

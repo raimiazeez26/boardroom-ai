@@ -1,0 +1,4 @@
+sheet,headers
+Conversations,"conversation_id,chat_id,user_id,username,request_text,request_mode,request_type,selected_agents,analysis_depth,final_response,status,telegram_message_id,created_at,completed_at,execution_id"
+Agent_Responses,"response_id,conversation_id,agent_type,agent_name,agent_objective,agent_response,confidence,key_assumptions,created_at,execution_id"
+Activity_Log,"activity_id,conversation_id,chat_id,workflow_name,action,result,details,execution_id,created_at"

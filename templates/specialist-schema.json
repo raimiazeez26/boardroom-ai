@@ -1,0 +1,50 @@
+{
+  "type": "object",
+  "properties": {
+    "executive_summary": {
+      "type": "string"
+    },
+    "key_findings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "recommendations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "key_assumptions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "critical_questions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "strongest_insight": {
+      "type": "string"
+    },
+    "confidence": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    }
+  },
+  "required": [
+    "executive_summary",
+    "key_findings",
+    "recommendations",
+    "key_assumptions",
+    "critical_questions",
+    "strongest_insight",
+    "confidence"
+  ],
+  "additionalProperties": false
+}

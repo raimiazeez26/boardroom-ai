@@ -1,0 +1,45 @@
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:2.31.6
+    container_name: boardroom-n8n
+    restart: unless-stopped
+    ports:
+      - "${N8N_PORT}:5678"
+    environment:
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - N8N_HOST=localhost
+      - WEBHOOK_URL=${WEBHOOK_URL}
+      - N8N_EDITOR_BASE_URL=${N8N_EDITOR_BASE_URL}
+      - N8N_PROXY_HOPS=${N8N_PROXY_HOPS}
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
+      - TZ=${TZ}
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - N8N_SECURE_COOKIE=${N8N_SECURE_COOKIE}
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+      - EXECUTIONS_DATA_PRUNE=${EXECUTIONS_DATA_PRUNE}
+      - EXECUTIONS_DATA_MAX_AGE=${EXECUTIONS_DATA_MAX_AGE}
+      - N8N_DIAGNOSTICS_ENABLED=${N8N_DIAGNOSTICS_ENABLED}
+      - N8N_VERSION_NOTIFICATIONS_ENABLED=${N8N_VERSION_NOTIFICATIONS_ENABLED}
+      - N8N_PERSONALIZATION_ENABLED=${N8N_PERSONALIZATION_ENABLED}
+      - N8N_RUNNERS_MODE=external
+      - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
+      - N8N_RUNNERS_BROKER_LISTEN_ADDRESS=0.0.0.0
+      - N8N_NATIVE_PYTHON_RUNNER=true
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./local-files:/files
+
+  n8n-runners:
+    image: n8nio/runners:2.31.6
+    container_name: boardroom-task-runners
+    restart: unless-stopped
+    environment:
+      - N8N_RUNNERS_TASK_BROKER_URI=http://n8n:5679
+      - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
+      - TZ=${TZ}
+    depends_on:
+      - n8n
+
+volumes:
+  n8n_data:
