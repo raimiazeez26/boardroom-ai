@@ -1,0 +1,287 @@
+{
+  "name": "Boardroom AI — Specialist Agent",
+  "nodes": [
+    {
+      "id": "spec-01",
+      "name": "01 Execute Sub-workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "conversation_id"
+            },
+            {
+              "name": "agent_type"
+            },
+            {
+              "name": "agent_name"
+            },
+            {
+              "name": "agent_objective"
+            },
+            {
+              "name": "user_request"
+            },
+            {
+              "name": "request_type"
+            },
+            {
+              "name": "analysis_depth"
+            },
+            {
+              "name": "context"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "spec-02",
+      "name": "02 Validate Specialist Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "language": "python",
+        "pythonCode": "data = _items[0][\"json\"]\n\nallowed_agents = {\"market\", \"strategy\", \"finance\", \"risk\"}\n\ndef clean(value):\n    if value is None:\n        return \"\"\n    return str(value).strip()\n\nagent_type = clean(data.get(\"agent_type\")).lower()\nuser_request = clean(data.get(\"user_request\"))\nconversation_id = clean(data.get(\"conversation_id\"))\nagent_name = clean(data.get(\"agent_name\"))\nagent_objective = clean(data.get(\"agent_objective\"))\nrequest_type = clean(data.get(\"request_type\")) or \"general_business_advisory\"\nanalysis_depth = clean(data.get(\"analysis_depth\")) or \"standard\"\ncontext = clean(data.get(\"context\")) or \"No additional context was supplied.\"\n\nerrors = []\nif not conversation_id:\n    errors.append(\"Conversation ID is required.\")\nif not user_request:\n    errors.append(\"User request is required.\")\nif agent_type not in allowed_agents:\n    errors.append(\"Agent type must be market, strategy, finance or risk.\")\n\nif errors:\n    raise ValueError(\" \".join(errors))\n\nreturn [{\n    \"json\": {\n        \"conversation_id\": conversation_id,\n        \"agent_type\": agent_type,\n        \"agent_name\": agent_name,\n        \"agent_objective\": agent_objective,\n        \"user_request\": user_request,\n        \"request_type\": request_type,\n        \"analysis_depth\": analysis_depth,\n        \"context\": context,\n        \"validation_passed\": True,\n    }\n}]",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "spec-03",
+      "name": "03 Prepare Specialist Prompt",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "spec-instruction",
+              "name": "specialist_instruction",
+              "value": "={{ $json.agent_type === 'market' ? `You are the Market Research Analyst on a virtual business advisory board. Your responsibilities: identify target customers; assess demand and buying behaviour; analyse competitors and alternatives; identify market gaps; recommend positioning and differentiation; separate evidence from assumptions. Focus only on market and customer considerations.` : $json.agent_type === 'strategy' ? `You are the Business Strategy Consultant on a virtual advisory board. Your responsibilities: clarify the business model; assess the value proposition; recommend strategic priorities; design a practical go-to-market approach; propose implementation milestones; identify trade-offs and dependencies. Focus only on strategy and execution.` : $json.agent_type === 'finance' ? `You are the Financial Analyst on a virtual business advisory board. Your responsibilities: identify major startup and operating cost categories; propose pricing approaches; build simple revenue assumptions; assess unit economics; explain break-even drivers; highlight cash-flow considerations. Use clearly labelled illustrative assumptions instead of invented market facts.` : `You are the Risk and Challenge Analyst on a virtual advisory board. Your responsibilities: challenge optimistic assumptions; identify market, operational, financial, legal and execution risks; rate material risks by likelihood and impact; propose mitigations; surface unanswered questions. Be constructive but sceptical.` }}",
+              "type": "string"
+            },
+            {
+              "id": "spec-prompt",
+              "name": "specialist_prompt",
+              "value": "={{ `${$json.specialist_instruction}\\n\\nUSER REQUEST\\n${$json.user_request}\\n\\nSUPERVISOR OBJECTIVE\\n${$json.agent_objective}\\n\\nREQUEST TYPE\\n${$json.request_type}\\n\\nANALYSIS DEPTH\\n${$json.analysis_depth}\\n\\nAVAILABLE CONTEXT\\n${$json.context || 'No additional context was supplied.'}\\n\\nINSTRUCTIONS\\n1. Analyse only your assigned area.\\n2. Do not claim assumptions are verified facts.\\n3. Avoid generic motivational language.\\n4. Make recommendations specific to the request.\\n5. Identify the strongest insight from your analysis.\\n6. Return only the structured output requested by the parser.\\n` }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "spec-04",
+      "name": "04 Specialist LLM Analysis",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.specialist_prompt }}",
+        "hasOutputParser": true,
+        "batching": {}
+      }
+    },
+    {
+      "id": "spec-04a",
+      "name": "04A Gemini Specialist Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        220
+      ],
+      "parameters": {
+        "options": {}
+      }
+    },
+    {
+      "id": "spec-04b",
+      "name": "04B Specialist Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        880,
+        220
+      ],
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"executive_summary\": {\n      \"type\": \"string\"\n    },\n    \"key_findings\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"recommendations\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"key_assumptions\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"critical_questions\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\"\n      }\n    },\n    \"strongest_insight\": {\n      \"type\": \"string\"\n    },\n    \"confidence\": {\n      \"type\": \"integer\",\n      \"minimum\": 0,\n      \"maximum\": 100\n    }\n  },\n  \"required\": [\n    \"executive_summary\",\n    \"key_findings\",\n    \"recommendations\",\n    \"key_assumptions\",\n    \"critical_questions\",\n    \"strongest_insight\",\n    \"confidence\"\n  ],\n  \"additionalProperties\": false\n}"
+      }
+    },
+    {
+      "id": "spec-05",
+      "name": "05 Normalise Specialist Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ],
+      "parameters": {
+        "language": "python",
+        "pythonCode": "def clean_text(value):\n    if value is None:\n        return \"\"\n    return str(value).strip()\n\ndef clean_list(value):\n    if not isinstance(value, list):\n        return []\n    cleaned = []\n    seen = set()\n    for entry in value:\n        text = clean_text(entry)\n        if not text:\n            continue\n        key = text.lower()\n        if key in seen:\n            continue\n        seen.add(key)\n        cleaned.append(text)\n    return cleaned\n\ndef clamp_score(value):\n    try:\n        score = int(round(float(value)))\n    except Exception:\n        score = 0\n    return max(0, min(100, score))\n\ndata = _items[0][\"json\"]\nparsed = data.get(\"output\", data)\n\nif not isinstance(parsed, dict):\n    raise ValueError(\"Specialist response was not returned as structured data.\")\n\nreturn [{\n    \"json\": {\n        \"executive_summary\": clean_text(parsed.get(\"executive_summary\")),\n        \"key_findings\": clean_list(parsed.get(\"key_findings\")),\n        \"recommendations\": clean_list(parsed.get(\"recommendations\")),\n        \"key_assumptions\": clean_list(parsed.get(\"key_assumptions\")),\n        \"critical_questions\": clean_list(parsed.get(\"critical_questions\")),\n        \"strongest_insight\": clean_text(parsed.get(\"strongest_insight\")),\n        \"confidence\": clamp_score(parsed.get(\"confidence\")),\n        \"specialist_response_valid\": True,\n    }\n}]",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "spec-06",
+      "name": "06 Return Specialist Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1280,
+        0
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ret-01",
+              "name": "conversation_id",
+              "value": "={{ $('03 Prepare Specialist Prompt').first().json.conversation_id }}",
+              "type": "string"
+            },
+            {
+              "id": "ret-02",
+              "name": "agent_type",
+              "value": "={{ $('03 Prepare Specialist Prompt').first().json.agent_type }}",
+              "type": "string"
+            },
+            {
+              "id": "ret-03",
+              "name": "agent_name",
+              "value": "={{ $('03 Prepare Specialist Prompt').first().json.agent_name }}",
+              "type": "string"
+            },
+            {
+              "id": "ret-04",
+              "name": "agent_objective",
+              "value": "={{ $('03 Prepare Specialist Prompt').first().json.agent_objective }}",
+              "type": "string"
+            },
+            {
+              "id": "ret-05",
+              "name": "created_at",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "01 Execute Sub-workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "02 Validate Specialist Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 Validate Specialist Request": {
+      "main": [
+        [
+          {
+            "node": "03 Prepare Specialist Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03 Prepare Specialist Prompt": {
+      "main": [
+        [
+          {
+            "node": "04 Specialist LLM Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04A Gemini Specialist Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "04 Specialist LLM Analysis",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04B Specialist Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "04 Specialist LLM Analysis",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04 Specialist LLM Analysis": {
+      "main": [
+        [
+          {
+            "node": "05 Normalise Specialist Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "05 Normalise Specialist Response": {
+      "main": [
+        [
+          {
+            "node": "06 Return Specialist Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "boardroom-specialist-v1",
+  "meta": {},
+  "nodeGroups": [],
+  "id": "boardroomSpecialistV1",
+  "tags": []
+}

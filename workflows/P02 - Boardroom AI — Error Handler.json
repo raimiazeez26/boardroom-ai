@@ -1,0 +1,370 @@
+{
+  "name": "Boardroom AI — Error Handler",
+  "nodes": [
+    {
+      "id": "err-01",
+      "name": "01 Error Handler Input",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "conversation_id"
+            },
+            {
+              "name": "chat_id"
+            },
+            {
+              "name": "workflow_name"
+            },
+            {
+              "name": "action"
+            },
+            {
+              "name": "request_text"
+            },
+            {
+              "name": "error_message"
+            },
+            {
+              "name": "severity"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "err-02",
+      "name": "02 Normalise Error Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "language": "python",
+        "pythonCode": "data = _items[0][\"json\"]\n\ndef clean(value):\n    if value is None:\n        return \"\"\n    return str(value).strip()\n\nseverity = clean(data.get(\"severity\")).lower() or \"error\"\nif severity not in {\"info\", \"warning\", \"error\", \"critical\"}:\n    severity = \"error\"\n\nreturn [{\n    \"json\": {\n        \"conversation_id\": clean(data.get(\"conversation_id\")),\n        \"chat_id\": clean(data.get(\"chat_id\")),\n        \"workflow_name\": clean(data.get(\"workflow_name\")) or \"Boardroom AI — Error Handler\",\n        \"action\": clean(data.get(\"action\")) or \"workflow_error\",\n        \"request_text\": clean(data.get(\"request_text\")),\n        \"error_message\": clean(data.get(\"error_message\")) or \"An unknown workflow error occurred.\",\n        \"severity\": severity,\n        \"created_at\": clean(data.get(\"created_at\")),\n    }\n}]",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "id": "err-03",
+      "name": "03 Build Error Reply And Log",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "err-a1",
+              "name": "reply_text",
+              "value": "={{ 'I ran into a workflow issue while processing this request. Please review the workflow logs and retry after updating the credentials or node settings.' }}",
+              "type": "string"
+            },
+            {
+              "id": "err-a2",
+              "name": "activity_id",
+              "value": "={{ 'ERR-' + $execution.id + '-' + $now.toMillis() }}",
+              "type": "string"
+            },
+            {
+              "id": "err-a3",
+              "name": "result",
+              "value": "={{ $json.severity }}",
+              "type": "string"
+            },
+            {
+              "id": "err-a4",
+              "name": "details",
+              "value": "={{ JSON.stringify({ request_text: $json.request_text, error_message: $json.error_message }) }}",
+              "type": "string"
+            },
+            {
+              "id": "err-a5",
+              "name": "created_at",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      }
+    },
+    {
+      "id": "err-04",
+      "name": "04 Has Chat ID?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "err-cond-chat",
+              "leftValue": "={{ Boolean($json.chat_id) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "err-04a",
+      "name": "04A Send Telegram Error Reply",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        960,
+        -120
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $('03 Build Error Reply And Log').first().json.chat_id }}",
+        "text": "={{ $('03 Build Error Reply And Log').first().json.reply_text }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "err-05",
+      "name": "05 Log Error Activity To Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        960,
+        120
+      ],
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultName": "Boardroom AI Database"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "",
+          "mode": "list",
+          "cachedResultName": "Activity_Log"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "activity_id": "={{ $('03 Build Error Reply And Log').first().json.activity_id }}",
+            "conversation_id": "={{ $('03 Build Error Reply And Log').first().json.conversation_id }}",
+            "chat_id": "={{ $('03 Build Error Reply And Log').first().json.chat_id }}",
+            "workflow_name": "={{ $('03 Build Error Reply And Log').first().json.workflow_name }}",
+            "action": "={{ $('03 Build Error Reply And Log').first().json.action }}",
+            "result": "={{ $('03 Build Error Reply And Log').first().json.result }}",
+            "details": "={{ $('03 Build Error Reply And Log').first().json.details }}",
+            "execution_id": "={{ $execution.id }}",
+            "created_at": "={{ $('03 Build Error Reply And Log').first().json.created_at }}"
+          },
+          "matchingColumns": [
+            "activity_id"
+          ],
+          "schema": [
+            {
+              "id": "activity_id",
+              "displayName": "activity_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "conversation_id",
+              "displayName": "conversation_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "chat_id",
+              "displayName": "chat_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "workflow_name",
+              "displayName": "workflow_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "action",
+              "displayName": "action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "result",
+              "displayName": "result",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "details",
+              "displayName": "details",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "execution_id",
+              "displayName": "execution_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "01 Error Handler Input": {
+      "main": [
+        [
+          {
+            "node": "02 Normalise Error Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 Normalise Error Payload": {
+      "main": [
+        [
+          {
+            "node": "03 Build Error Reply And Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03 Build Error Reply And Log": {
+      "main": [
+        [
+          {
+            "node": "04 Has Chat ID?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04 Has Chat ID?": {
+      "main": [
+        [
+          {
+            "node": "04A Send Telegram Error Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "05 Log Error Activity To Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04A Send Telegram Error Reply": {
+      "main": [
+        [
+          {
+            "node": "05 Log Error Activity To Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "boardroom-error-handler-v1",
+  "meta": {},
+  "nodeGroups": [],
+  "id": "boardroomErrorHandlerV1",
+  "tags": []
+}

@@ -1,0 +1,1694 @@
+{
+  "name": "Boardroom AI — Telegram Orchestrator",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "1d5a7255-3837-47c3-b31c-bdf46240c0ec",
+      "name": "01 Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -6496,
+        336
+      ],
+      "webhookId": "ec74fe24-3e50-453a-9a94-5b987553403c",
+      "credentials": {
+        "telegramApi": {
+          "id": "cA9RnL5PQoUl3Z7h",
+          "name": "Telegram account v1"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "language": "pythonNative",
+        "pythonCode": "data = _items[0][\"json\"]\nmessage = data.get(\"message\") or {}\nchat = message.get(\"chat\") or {}\nsender = message.get(\"from\") or {}\n\ntext = message.get(\"text\")\nif text is None:\n    text = message.get(\"caption\")\n\ndef clean(value):\n    if value is None:\n        return \"\"\n    return str(value).strip()\n\ndef is_help_request(value):\n    lowered = value.lower()\n    help_signals = [\n        \"help\",\n        \"what can you do\",\n        \"how can you help\",\n        \"what do you do\",\n        \"commands\",\n        \"examples\",\n    ]\n    return any(signal in lowered for signal in help_signals)\n\ndef is_greeting(value):\n    lowered = value.lower().strip()\n    greetings = {\n        \"hi\",\n        \"hello\",\n        \"hey\",\n        \"good morning\",\n        \"good afternoon\",\n        \"good evening\",\n    }\n    if lowered in greetings:\n        return True\n    tokens = [token for token in lowered.replace(\",\", \" \").split() if token]\n    return bool(tokens) and len(tokens) <= 3 and all(\n        token in {\"hi\", \"hello\", \"hey\", \"morning\", \"afternoon\", \"evening\", \"good\"}\n        for token in tokens\n    )\n\nchat_id = clean(chat.get(\"id\"))\nuser_id = clean(sender.get(\"id\")) or chat_id\nusername = clean(sender.get(\"username\"))\nfirst_name = clean(sender.get(\"first_name\"))\nlast_name = clean(sender.get(\"last_name\"))\nfull_name = (first_name + \" \" + last_name).strip() or username or \"Telegram User\"\nrequest_text = clean(text)\nincoming_message_id = clean(message.get(\"message_id\"))\n\nif not chat_id:\n    raise ValueError(\"Telegram chat_id is missing.\")\n\nroute = \"unsupported\"\nrequest_mode = \"standard\"\nanalysis_depth = \"standard\"\nuser_request = request_text\n\nlowered = request_text.lower()\n\nif request_text:\n    if lowered.startswith(\"/start\"):\n        route = \"start\"\n    elif lowered.startswith(\"/help\"):\n        route = \"help\"\n    elif lowered.startswith(\"/quick\"):\n        route = \"business\"\n        request_mode = \"quick\"\n        analysis_depth = \"quick\"\n        user_request = request_text[6:].strip()\n    elif lowered.startswith(\"/deep\"):\n        route = \"business\"\n        request_mode = \"deep\"\n        analysis_depth = \"deep\"\n        user_request = request_text[5:].strip()\n    elif is_help_request(request_text):\n        route = \"help\"\n    elif is_greeting(request_text):\n        route = \"greeting\"\n    else:\n        route = \"business\"\n\nif route == \"business\" and not user_request:\n    route = \"help\"\n\nmessage_date = clean(message.get(\"date\"))\nmessage_token = message_date or incoming_message_id or \"0\"\nconversation_id = f\"BRD-{message_token}-{chat_id}\"\nreceived_at = message_date\n\nreturn [{\n    \"json\": {\n        \"chat_id\": chat_id,\n        \"user_id\": user_id,\n        \"username\": username,\n        \"full_name\": full_name,\n        \"incoming_message_id\": incoming_message_id,\n        \"request_text\": request_text,\n        \"user_request\": user_request,\n        \"route\": route,\n        \"request_mode\": request_mode,\n        \"analysis_depth\": analysis_depth,\n        \"conversation_id\": conversation_id,\n        \"received_at\": received_at,\n        \"raw_update\": data,\n    }\n}]"
+      },
+      "id": "bd3d9896-1939-43e5-96bc-272fc3d1142e",
+      "name": "02 Extract And Classify Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -6256,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-unsupported",
+              "leftValue": "={{ $json.route === 'unsupported' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "208614a0-c12b-416d-abda-7759001b9f2a",
+      "name": "03 Unsupported Message?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -6016,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('02 Extract And Classify Request').first().json.chat_id }}",
+        "text": "Please send a text message so I can review the business request.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "f087bf92-a8ff-4fd4-946b-08096942f2ee",
+      "name": "03A Send Unsupported Reply",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -5776,
+        544
+      ],
+      "webhookId": "fce9dbb8-1204-4f90-9318-072962ed8dac",
+      "credentials": {
+        "telegramApi": {
+          "id": "cA9RnL5PQoUl3Z7h",
+          "name": "Telegram account v1"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-start",
+              "leftValue": "={{ $json.route === 'start' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c3d57e2a-242e-48cf-89ee-a877736cba92",
+      "name": "04 Start Command?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -5776,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('02 Extract And Classify Request').first().json.chat_id }}",
+        "text": "Welcome to Boardroom AI.\n\nSend a business question and I will route it to the right virtual advisers.\n\nCommands:\n/quick for a faster two-specialist review\n/deep for a broader four-specialist review\n/help to see examples",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "3ceeb4c6-22a6-4968-abfd-be483ca451a5",
+      "name": "04A Send Start Message",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -5536,
+        528
+      ],
+      "webhookId": "73553054-53bc-4a8c-81a1-05aa8c1b10fc",
+      "credentials": {
+        "telegramApi": {
+          "id": "cA9RnL5PQoUl3Z7h",
+          "name": "Telegram account v1"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-help",
+              "leftValue": "={{ $json.route === 'help' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ade333dc-2630-4120-b8ad-d7d95ca88d4b",
+      "name": "05 Help Request?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -5536,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('02 Extract And Classify Request').first().json.chat_id }}",
+        "text": "Boardroom AI can review business ideas, pricing, strategy, risks, and launch plans.\n\nExamples:\n/quick Help me price an AI automation consulting service for SMEs.\n/deep Analyse a laundry pickup and delivery business in Lagos.\nAnalyse a subscription-based financial dashboard for small retail businesses.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "68133123-118f-4ac8-8771-8b1be2c92178",
+      "name": "05A Send Help Message",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -5296,
+        528
+      ],
+      "webhookId": "5f6db00a-2785-4fab-9122-38699e1970a4",
+      "credentials": {
+        "telegramApi": {
+          "id": "cA9RnL5PQoUl3Z7h",
+          "name": "Telegram account v1"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-greeting",
+              "leftValue": "={{ $json.route === 'greeting' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f904a9b6-847c-430f-85b7-359ec79a51b0",
+      "name": "06 Greeting?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -5296,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('02 Extract And Classify Request').first().json.chat_id }}",
+        "text": "Hello. Send a business question whenever you are ready, or type /help for examples.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "c009a107-df11-405a-8415-e4f60d02189d",
+      "name": "06A Send Greeting Reply",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -5056,
+        528
+      ],
+      "webhookId": "38f47662-c1ef-4dc9-9a12-3c7b7bea7c41",
+      "credentials": {
+        "telegramApi": {
+          "id": "cA9RnL5PQoUl3Z7h",
+          "name": "Telegram account v1"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "sendChatAction",
+        "chatId": "={{ $('02 Extract And Classify Request').first().json.chat_id }}"
+      },
+      "id": "f33622aa-da50-4735-95ff-b3e570108b6d",
+      "name": "07 Send Typing Action",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -5056,
+        224
+      ],
+      "webhookId": "92e34550-86e5-4054-8aac-fab64b688448",
+      "credentials": {
+        "telegramApi": {
+          "id": "cA9RnL5PQoUl3Z7h",
+          "name": "Telegram account v1"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "assign-supervisor-prompt",
+              "name": "supervisor_prompt",
+              "value": "={{ `You are the Supervisor Planner for Boardroom AI.\\n\\nYour job is to decide which specialist agents should analyse the user's business request.\\n\\nAvailable specialist agents:\\n- market: customer demand, segments, competition, positioning\\n- strategy: business model, go-to-market, operating plan\\n- finance: pricing, margins, cost structure, feasibility assumptions\\n- risk: threats, failure points, mitigations, constraints\\n\\nRULES\\n1. Respect the requested analysis depth.\\n2. If analysis depth is quick, choose exactly 2 agents.\\n3. If analysis depth is deep, choose all 4 agents unless the request is completely unrelated to a business review.\\n4. For standard depth, choose 2 to 4 agents.\\n5. Keep request_type short and specific.\\n6. Each agent objective should be concrete and different from the others.\\n7. Return only the structured output required by the parser.\\n\\nUSER NAME\\n${$json.full_name}\\n\\nREQUEST MODE\\n${$json.request_mode}\\n\\nANALYSIS DEPTH\\n${$json.analysis_depth}\\n\\nUSER REQUEST\\n${$json.user_request}\\n` }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "bb687fe0-0590-49f6-b603-b4c0046a50c3",
+      "name": "08 Prepare Supervisor Prompt",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -4816,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.supervisor_prompt }}",
+        "hasOutputParser": true,
+        "batching": {}
+      },
+      "id": "448200a4-176a-4e06-8234-3862aa096abf",
+      "name": "09 Supervisor LLM Analysis",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        -4576,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "638067cb-89f9-411a-90af-ae6d5aa7eb09",
+      "name": "09A Gemini Supervisor Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        -4576,
+        576
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"request_type\": {\n      \"type\": \"string\"\n    },\n    \"analysis_depth\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"quick\",\n        \"standard\",\n        \"deep\"\n      ]\n    },\n    \"problem_summary\": {\n      \"type\": \"string\"\n    },\n    \"selected_agents\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"string\",\n        \"enum\": [\n          \"market\",\n          \"strategy\",\n          \"finance\",\n          \"risk\"\n        ]\n      }\n    },\n    \"agent_tasks\": {\n      \"type\": \"array\",\n      \"items\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"agent_type\": {\n            \"type\": \"string\",\n            \"enum\": [\n              \"market\",\n              \"strategy\",\n              \"finance\",\n              \"risk\"\n            ]\n          },\n          \"objective\": {\n            \"type\": \"string\"\n          }\n        },\n        \"required\": [\n          \"agent_type\",\n          \"objective\"\n        ],\n        \"additionalProperties\": false\n      }\n    },\n    \"key_context\": {\n      \"type\": \"string\"\n    },\n    \"expected_output\": {\n      \"type\": \"string\"\n    }\n  },\n  \"required\": [\n    \"request_type\",\n    \"analysis_depth\",\n    \"problem_summary\",\n    \"selected_agents\",\n    \"agent_tasks\",\n    \"key_context\",\n    \"expected_output\"\n  ],\n  \"additionalProperties\": false\n}"
+      },
+      "id": "a624eaf6-9827-4b23-96a1-fdb8af77f53a",
+      "name": "09B Supervisor Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -4416,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "data = _items[0][\"json\"]\n\nallowed_agents = [\"market\", \"strategy\", \"finance\", \"risk\"]\nfallback_objectives = {\n    \"market\": \"Assess customer demand, competition, and positioning.\",\n    \"strategy\": \"Evaluate the business model, launch approach, and execution priorities.\",\n    \"finance\": \"Assess pricing, cost structure, and commercial feasibility assumptions.\",\n    \"risk\": \"Identify key threats, failure points, and practical mitigations.\",\n}\n\ndef clean(value):\n    if value is None:\n        return \"\"\n    return str(value).strip()\n\ndef unique_agents(values):\n    cleaned = []\n    seen = set()\n    for value in values:\n        agent = clean(value).lower()\n        if agent not in allowed_agents or agent in seen:\n            continue\n        seen.add(agent)\n        cleaned.append(agent)\n    return cleaned\n\nparsed = data.get(\"output\", data)\nif not isinstance(parsed, dict):\n    parsed = {}\n\nrequested_depth = clean(data.get(\"analysis_depth\")).lower() or \"standard\"\nselected = unique_agents(parsed.get(\"selected_agents\") or [])\n\ntask_lookup = {}\nfor task in parsed.get(\"agent_tasks\") or []:\n    if not isinstance(task, dict):\n        continue\n    agent_type = clean(task.get(\"agent_type\")).lower()\n    if agent_type in allowed_agents and agent_type not in task_lookup:\n        task_lookup[agent_type] = clean(task.get(\"objective\"))\n\nif not selected and task_lookup:\n    selected = unique_agents(task_lookup.keys())\n\nif requested_depth == \"quick\":\n    default_agents = [\"market\", \"strategy\"]\n    selected = selected[:2]\n    for agent in default_agents:\n        if agent not in selected and len(selected) < 2:\n            selected.append(agent)\nelif requested_depth == \"deep\":\n    selected = [\"market\", \"strategy\", \"finance\", \"risk\"]\nelse:\n    if not selected:\n        selected = [\"market\", \"strategy\", \"finance\"]\n\nagent_tasks = []\nfor agent in selected:\n    agent_tasks.append({\n        \"agent_type\": agent,\n        \"objective\": task_lookup.get(agent) or fallback_objectives[agent],\n    })\n\nreturn [{\n    \"json\": {\n        \"request_type\": clean(parsed.get(\"request_type\")) or \"general_business_advisory\",\n        \"analysis_depth\": requested_depth,\n        \"problem_summary\": clean(parsed.get(\"problem_summary\")) or clean(data.get(\"user_request\")),\n        \"selected_agents\": selected,\n        \"selected_agents_csv\": \", \".join(selected),\n        \"agent_tasks\": agent_tasks,\n        \"key_context\": clean(parsed.get(\"key_context\")) or \"No additional context was supplied.\",\n        \"expected_output\": clean(parsed.get(\"expected_output\")) or \"A concise executive recommendation with findings, risks, and next steps.\",\n    }\n}]"
+      },
+      "id": "cd974907-16f3-4363-aa71-e723ef13118c",
+      "name": "10 Normalise Supervisor Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4336,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "data = _items[0][\"json\"]\n\nagent_names = {\n    \"market\": \"Market Research Analyst\",\n    \"strategy\": \"Business Strategy Consultant\",\n    \"finance\": \"Financial Analyst\",\n    \"risk\": \"Risk and Challenge Analyst\",\n}\n\noutput = []\nfor task in data.get(\"agent_tasks\") or []:\n    if not isinstance(task, dict):\n        continue\n    agent_type = str(task.get(\"agent_type\") or \"\").strip().lower()\n    if agent_type not in agent_names:\n        continue\n    output.append({\n        \"json\": {\n            \"conversation_id\": data.get(\"conversation_id\", \"\"),\n            \"agent_type\": agent_type,\n            \"agent_name\": agent_names[agent_type],\n            \"agent_objective\": str(task.get(\"objective\") or \"\").strip(),\n            \"user_request\": str(data.get(\"user_request\") or \"\").strip(),\n            \"request_type\": str(data.get(\"request_type\") or \"\").strip(),\n            \"analysis_depth\": str(data.get(\"analysis_depth\") or \"\").strip(),\n            \"context\": str(data.get(\"key_context\") or \"\").strip(),\n            \"problem_summary\": str(data.get(\"problem_summary\") or \"\").strip(),\n            \"selected_agents_csv\": str(data.get(\"selected_agents_csv\") or \"\").strip(),\n            \"requested_at\": str(data.get(\"received_at\") or \"\").strip(),\n        }\n    })\n\nif not output:\n    raise ValueError(\"No specialist requests could be created from the supervisor output.\")\n\nreturn output"
+      },
+      "id": "f2d179fb-1e00-4868-9dba-0b64fbf9b78d",
+      "name": "11 Build Specialist Requests",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4096,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "54ffc688-c3e9-4c8c-83f3-c479cda66a7c",
+      "name": "11A Loop Over Specialist Requests",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -3888,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "GM42uCtNlYy5i3PX",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/GM42uCtNlYy5i3PX",
+          "cachedResultName": "Boardroom AI — Specialist Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "agent_type": "={{ $('11 Build Specialist Requests').item.json.agent_type }}",
+            "agent_name": "={{ $('11 Build Specialist Requests').item.json.agent_name }}",
+            "agent_objective": "={{ $('11 Build Specialist Requests').item.json.agent_objective }}",
+            "user_request": "={{ $('02 Extract And Classify Request').item.json.user_request }}",
+            "request_type": "={{ $('11 Build Specialist Requests').item.json.request_type }}",
+            "analysis_depth": "={{ $('11 Build Specialist Requests').item.json.analysis_depth }}",
+            "context": "={{ $('11 Build Specialist Requests').item.json.context }}",
+            "conversation_id": "={{ $('02 Extract And Classify Request').item.json.conversation_id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "conversation_id",
+              "displayName": "conversation_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "agent_type",
+              "displayName": "agent_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "agent_name",
+              "displayName": "agent_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "agent_objective",
+              "displayName": "agent_objective",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "user_request",
+              "displayName": "user_request",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "request_type",
+              "displayName": "request_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "analysis_depth",
+              "displayName": "analysis_depth",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "context",
+              "displayName": "context",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "eafdca6f-5c9e-4ec5-9afe-1aa8f2ed97f6",
+      "name": "12 Call Specialist Sub-workflow",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        -3744,
+        224
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "def clean(value):\n    if value is None:\n        return \"\"\n    return str(value).strip()\n\ndef clean_list(value):\n    if not isinstance(value, list):\n        return []\n    cleaned = []\n    seen = set()\n    for item in value:\n        text = clean(item)\n        if not text:\n            continue\n        key = text.lower()\n        if key in seen:\n            continue\n        seen.add(key)\n        cleaned.append(text)\n    return cleaned\n\ndef as_int(value):\n    try:\n        return int(round(float(value)))\n    except Exception:\n        return 0\n\noutput = []\nfor item in _items:\n    data = item.get(\"json\", {})\n    payload = data.get(\"output\", data)\n    if not isinstance(payload, dict):\n        raise ValueError(\"Specialist sub-workflow returned an invalid payload.\")\n\n    key_findings = clean_list(payload.get(\"key_findings\"))\n    recommendations = clean_list(payload.get(\"recommendations\"))\n    assumptions = clean_list(payload.get(\"key_assumptions\"))\n    questions = clean_list(payload.get(\"critical_questions\"))\n\n    agent_response = \"\\n\".join([\n        \"Executive Summary: \" + clean(payload.get(\"executive_summary\")),\n        \"Key Findings: \" + (\" | \".join(key_findings) or \"None supplied.\"),\n        \"Recommendations: \" + (\" | \".join(recommendations) or \"None supplied.\"),\n        \"Critical Questions: \" + (\" | \".join(questions) or \"None supplied.\"),\n        \"Strongest Insight: \" + clean(payload.get(\"strongest_insight\")),\n    ]).strip()\n\n    agent_type = clean(data.get(\"agent_type\")) or \"agent\"\n    conversation_id = clean(data.get(\"conversation_id\")) or \"conversation\"\n    response_id = clean(data.get(\"response_id\")) or (\"RESP-\" + conversation_id + \"-\" + agent_type)\n\n    output.append({\n        \"json\": {\n            \"response_id\": response_id,\n            \"conversation_id\": conversation_id,\n            \"agent_type\": agent_type,\n            \"agent_name\": clean(data.get(\"agent_name\")),\n            \"agent_objective\": clean(data.get(\"agent_objective\")),\n            \"executive_summary\": clean(payload.get(\"executive_summary\")),\n            \"key_findings\": key_findings,\n            \"recommendations\": recommendations,\n            \"key_assumptions\": assumptions,\n            \"critical_questions\": questions,\n            \"strongest_insight\": clean(payload.get(\"strongest_insight\")),\n            \"confidence\": max(0, min(100, as_int(payload.get(\"confidence\")))),\n            \"agent_response\": agent_response,\n            \"key_assumptions_text\": \" | \".join(assumptions),\n            \"created_at\": clean(data.get(\"created_at\")),\n        }\n    })\n\nreturn output"
+      },
+      "id": "f5e2e1dd-34dd-4130-bff4-536009887b5a",
+      "name": "13 Normalise Specialist Result Envelope",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3568,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "specialist_results",
+        "options": {}
+      },
+      "id": "cadca991-0b29-43fb-9097-a993f3fe9063",
+      "name": "14 Aggregate Specialist Results",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        -3328,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1XUpMyuKUvuqxj8GMBzPzvjjehq4IPZ70uNI9gQ5AHPA",
+          "mode": "list",
+          "cachedResultName": "Boardroom AI Database",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1XUpMyuKUvuqxj8GMBzPzvjjehq4IPZ70uNI9gQ5AHPA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 385077698,
+          "mode": "list",
+          "cachedResultName": "Agent_Responses",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1XUpMyuKUvuqxj8GMBzPzvjjehq4IPZ70uNI9gQ5AHPA/edit#gid=385077698"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "response_id": "={{ $json.response_id }}",
+            "conversation_id": "={{ $json.conversation_id }}",
+            "agent_type": "={{ $json.agent_type }}",
+            "agent_name": "={{ $json.agent_name }}",
+            "agent_objective": "={{ $json.agent_objective }}",
+            "agent_response": "={{ $json.agent_response }}",
+            "confidence": "={{ $json.confidence }}",
+            "key_assumptions": "={{ $json.key_assumptions_text }}",
+            "created_at": "={{ $json.created_at }}",
+            "execution_id": "={{ $execution.id }}"
+          },
+          "matchingColumns": [
+            "response_id"
+          ],
+          "schema": [
+            {
+              "id": "response_id",
+              "displayName": "response_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "conversation_id",
+              "displayName": "conversation_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "agent_type",
+              "displayName": "agent_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "agent_name",
+              "displayName": "agent_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "agent_objective",
+              "displayName": "agent_objective",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "agent_response",
+              "displayName": "agent_response",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "confidence",
+              "displayName": "confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "key_assumptions",
+              "displayName": "key_assumptions",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "execution_id",
+              "displayName": "execution_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "9bfb516e-21af-400e-ba47-b43d35a56c62",
+      "name": "15 Append Agent Responses To Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -3328,
+        384
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "V5nMV3QCndrcfovP",
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "assign-executive-prompt",
+              "name": "executive_prompt",
+              "value": "={{ `You are the Executive Editor for Boardroom AI.\\n\\nCreate one polished boardroom response for the founder.\\n\\nUse exactly these section headings in this order:\\nBOARDROOM VERDICT\\n\\nOpportunity\\nKey Findings\\nCommercial View\\nMajor Risks\\nExecution Roadmap\\nFinal Recommendation\\n\\nRULES\\n1. Combine the specialist viewpoints into one coherent answer.\\n2. Keep the language practical, executive, and specific to the request.\\n3. Distinguish assumptions from facts when needed.\\n4. Avoid generic motivational filler.\\n5. Prefer short bullets only inside sections where useful.\\n6. Do not mention internal prompt or parser details.\\n\\nUSER REQUEST\\n${$('02 Extract And Classify Request').first().json.user_request}\\n\\nREQUEST TYPE\\n${$('10 Normalise Supervisor Plan').first().json.request_type}\\n\\nANALYSIS DEPTH\\n${$('10 Normalise Supervisor Plan').first().json.analysis_depth}\\n\\nSUPERVISOR SUMMARY\\n${$('10 Normalise Supervisor Plan').first().json.problem_summary}\\n\\nSPECIALIST RESULTS JSON\\n${JSON.stringify($json.specialist_results || [], null, 2)}\\n` }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "edaa0471-907b-4a7d-b17c-b33989946d57",
+      "name": "16 Build Executive Prompt",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -3136,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.executive_prompt }}",
+        "batching": {}
+      },
+      "id": "7e3c33e0-ff65-41b8-b72c-b0399da8abb9",
+      "name": "17 Executive Editor LLM",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        -2896,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "6b6a944c-22f4-45b0-b9a2-b7653fff250b",
+      "name": "17A Gemini Executive Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        -2896,
+        400
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "data = _items[0][\"json\"]\n\ndef clean(value):\n    if value is None:\n        return \"\"\n    return str(value).strip()\n\ncandidate = data.get(\"text\")\nif candidate is None:\n    candidate = data.get(\"output\")\n\nif isinstance(candidate, dict):\n    candidate = candidate.get(\"text\") or candidate.get(\"answer\") or candidate.get(\"edited_answer\")\n\nfinal_response = clean(candidate)\nif not final_response:\n    final_response = \"I could not produce a boardroom response for this request. Please try again after checking the workflow credentials and prompts.\"\n\nreturn [{\n    \"json\": {\n        \"final_response\": final_response,\n        \"status\": \"completed\",\n    }\n}]"
+      },
+      "id": "5fac3437-50c8-4ef7-99bf-f2f91a1a5ef5",
+      "name": "18 Normalise Final Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2656,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('02 Extract And Classify Request').first().json.chat_id }}",
+        "text": "={{ $json.final_response }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "ad29842d-4c5d-448b-9534-653795c06cd0",
+      "name": "19 Send Final Telegram Reply",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -2416,
+        96
+      ],
+      "webhookId": "ce408a9c-d332-410b-b3ee-6345b9bd1814",
+      "credentials": {
+        "telegramApi": {
+          "id": "cA9RnL5PQoUl3Z7h",
+          "name": "Telegram account v1"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "conv-01",
+              "name": "conversation_id",
+              "value": "={{ $('02 Extract And Classify Request').first().json.conversation_id }}",
+              "type": "string"
+            },
+            {
+              "id": "conv-02",
+              "name": "chat_id",
+              "value": "={{ $('02 Extract And Classify Request').first().json.chat_id }}",
+              "type": "string"
+            },
+            {
+              "id": "conv-03",
+              "name": "user_id",
+              "value": "={{ $('02 Extract And Classify Request').first().json.user_id }}",
+              "type": "string"
+            },
+            {
+              "id": "conv-04",
+              "name": "username",
+              "value": "={{ $('02 Extract And Classify Request').first().json.username || $('02 Extract And Classify Request').first().json.full_name }}",
+              "type": "string"
+            },
+            {
+              "id": "conv-05",
+              "name": "request_text",
+              "value": "={{ $('02 Extract And Classify Request').first().json.request_text }}",
+              "type": "string"
+            },
+            {
+              "id": "conv-06",
+              "name": "request_mode",
+              "value": "={{ $('02 Extract And Classify Request').first().json.request_mode }}",
+              "type": "string"
+            },
+            {
+              "id": "conv-07",
+              "name": "request_type",
+              "value": "={{ $('10 Normalise Supervisor Plan').first().json.request_type }}",
+              "type": "string"
+            },
+            {
+              "id": "conv-08",
+              "name": "selected_agents",
+              "value": "={{ $('10 Normalise Supervisor Plan').first().json.selected_agents_csv }}",
+              "type": "string"
+            },
+            {
+              "id": "conv-09",
+              "name": "analysis_depth",
+              "value": "={{ $('10 Normalise Supervisor Plan').first().json.analysis_depth }}",
+              "type": "string"
+            },
+            {
+              "id": "conv-10",
+              "name": "final_response",
+              "value": "={{ $('18 Normalise Final Response').first().json.final_response }}",
+              "type": "string"
+            },
+            {
+              "id": "conv-11",
+              "name": "status",
+              "value": "completed",
+              "type": "string"
+            },
+            {
+              "id": "conv-12",
+              "name": "telegram_message_id",
+              "value": "={{ String($json.message_id || (($json.result && $json.result.message_id) || '')) }}",
+              "type": "string"
+            },
+            {
+              "id": "conv-13",
+              "name": "created_at",
+              "value": "={{ $('02 Extract And Classify Request').first().json.received_at }}",
+              "type": "string"
+            },
+            {
+              "id": "conv-14",
+              "name": "completed_at",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "conv-15",
+              "name": "execution_id",
+              "value": "={{ $execution.id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "04e35faf-4a6c-45f1-aede-eb222a534777",
+      "name": "20 Prepare Conversation Row",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -2176,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1XUpMyuKUvuqxj8GMBzPzvjjehq4IPZ70uNI9gQ5AHPA",
+          "mode": "list",
+          "cachedResultName": "Boardroom AI Database",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1XUpMyuKUvuqxj8GMBzPzvjjehq4IPZ70uNI9gQ5AHPA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Conversations",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1XUpMyuKUvuqxj8GMBzPzvjjehq4IPZ70uNI9gQ5AHPA/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "conversation_id": "={{ $json.conversation_id }}",
+            "chat_id": "={{ $json.chat_id }}",
+            "user_id": "={{ $json.user_id }}",
+            "username": "={{ $json.username }}",
+            "request_text": "={{ $json.request_text }}",
+            "request_mode": "={{ $json.request_mode }}",
+            "request_type": "={{ $json.request_type }}",
+            "selected_agents": "={{ $json.selected_agents }}",
+            "analysis_depth": "={{ $json.analysis_depth }}",
+            "final_response": "={{ $json.final_response }}",
+            "status": "={{ $json.status }}",
+            "telegram_message_id": "={{ $json.telegram_message_id }}",
+            "created_at": "={{ $json.created_at }}",
+            "completed_at": "={{ $json.completed_at }}",
+            "execution_id": "={{ $json.execution_id }}"
+          },
+          "matchingColumns": [
+            "conversation_id"
+          ],
+          "schema": [
+            {
+              "id": "conversation_id",
+              "displayName": "conversation_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "chat_id",
+              "displayName": "chat_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "user_id",
+              "displayName": "user_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "username",
+              "displayName": "username",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "request_text",
+              "displayName": "request_text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "request_mode",
+              "displayName": "request_mode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "request_type",
+              "displayName": "request_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "selected_agents",
+              "displayName": "selected_agents",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "analysis_depth",
+              "displayName": "analysis_depth",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "final_response",
+              "displayName": "final_response",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "telegram_message_id",
+              "displayName": "telegram_message_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "completed_at",
+              "displayName": "completed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "execution_id",
+              "displayName": "execution_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "24c29629-4093-4bfc-97a4-cf9501a515aa",
+      "name": "21 Log Conversation To Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1936,
+        96
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "V5nMV3QCndrcfovP",
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "act-01",
+              "name": "activity_id",
+              "value": "={{ 'ACT-' + $execution.id + '-' + $now.toMillis() }}",
+              "type": "string"
+            },
+            {
+              "id": "act-02",
+              "name": "conversation_id",
+              "value": "={{ $('20 Prepare Conversation Row').first().json.conversation_id }}",
+              "type": "string"
+            },
+            {
+              "id": "act-03",
+              "name": "chat_id",
+              "value": "={{ $('20 Prepare Conversation Row').first().json.chat_id }}",
+              "type": "string"
+            },
+            {
+              "id": "act-04",
+              "name": "workflow_name",
+              "value": "Boardroom AI — Telegram Orchestrator",
+              "type": "string"
+            },
+            {
+              "id": "act-05",
+              "name": "action",
+              "value": "final_response_sent",
+              "type": "string"
+            },
+            {
+              "id": "act-06",
+              "name": "result",
+              "value": "success",
+              "type": "string"
+            },
+            {
+              "id": "act-07",
+              "name": "details",
+              "value": "={{ JSON.stringify({ request_type: $('10 Normalise Supervisor Plan').first().json.request_type, selected_agents: $('10 Normalise Supervisor Plan').first().json.selected_agents, analysis_depth: $('10 Normalise Supervisor Plan').first().json.analysis_depth }) }}",
+              "type": "string"
+            },
+            {
+              "id": "act-08",
+              "name": "execution_id",
+              "value": "={{ $execution.id }}",
+              "type": "string"
+            },
+            {
+              "id": "act-09",
+              "name": "created_at",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3017187b-fbb6-460d-adc2-d63296ff17b0",
+      "name": "22 Prepare Activity Log Row",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1696,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1XUpMyuKUvuqxj8GMBzPzvjjehq4IPZ70uNI9gQ5AHPA",
+          "mode": "list",
+          "cachedResultName": "Boardroom AI Database",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1XUpMyuKUvuqxj8GMBzPzvjjehq4IPZ70uNI9gQ5AHPA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 687807917,
+          "mode": "list",
+          "cachedResultName": "Activity_Log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1XUpMyuKUvuqxj8GMBzPzvjjehq4IPZ70uNI9gQ5AHPA/edit#gid=687807917"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "activity_id": "={{ $json.activity_id }}",
+            "conversation_id": "={{ $json.conversation_id }}",
+            "chat_id": "={{ $json.chat_id }}",
+            "workflow_name": "={{ $json.workflow_name }}",
+            "action": "={{ $json.action }}",
+            "result": "={{ $json.result }}",
+            "details": "={{ $json.details }}",
+            "execution_id": "={{ $json.execution_id }}",
+            "created_at": "={{ $json.created_at }}"
+          },
+          "matchingColumns": [
+            "activity_id"
+          ],
+          "schema": [
+            {
+              "id": "activity_id",
+              "displayName": "activity_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "conversation_id",
+              "displayName": "conversation_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "chat_id",
+              "displayName": "chat_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "workflow_name",
+              "displayName": "workflow_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "action",
+              "displayName": "action",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "result",
+              "displayName": "result",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "details",
+              "displayName": "details",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "execution_id",
+              "displayName": "execution_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "55046cb8-e572-4771-917e-8bc027ec9fc3",
+      "name": "23 Log Activity To Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -1456,
+        96
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "V5nMV3QCndrcfovP",
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -4576,
+        400
+      ],
+      "id": "5e63e5a7-20c3-46c5-bbea-0f4ba767f7ba",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "sZX5JS7JqYXatjIv",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -2976,
+        304
+      ],
+      "id": "f48e1386-1bd9-4828-b3ed-a573b8f0d58c",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "sZX5JS7JqYXatjIv",
+          "name": "OpenAI account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "01 Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "02 Extract And Classify Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 Extract And Classify Request": {
+      "main": [
+        [
+          {
+            "node": "03 Unsupported Message?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03 Unsupported Message?": {
+      "main": [
+        [
+          {
+            "node": "03A Send Unsupported Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "04 Start Command?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04 Start Command?": {
+      "main": [
+        [
+          {
+            "node": "04A Send Start Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "05 Help Request?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "05 Help Request?": {
+      "main": [
+        [
+          {
+            "node": "05A Send Help Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "06 Greeting?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "06 Greeting?": {
+      "main": [
+        [
+          {
+            "node": "06A Send Greeting Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "07 Send Typing Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "07 Send Typing Action": {
+      "main": [
+        [
+          {
+            "node": "08 Prepare Supervisor Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "08 Prepare Supervisor Prompt": {
+      "main": [
+        [
+          {
+            "node": "09 Supervisor LLM Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "09A Gemini Supervisor Model": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "09B Supervisor Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "09 Supervisor LLM Analysis",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "09 Supervisor LLM Analysis": {
+      "main": [
+        [
+          {
+            "node": "10 Normalise Supervisor Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10 Normalise Supervisor Plan": {
+      "main": [
+        [
+          {
+            "node": "11 Build Specialist Requests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11 Build Specialist Requests": {
+      "main": [
+        [
+          {
+            "node": "11A Loop Over Specialist Requests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11A Loop Over Specialist Requests": {
+      "main": [
+        [
+          {
+            "node": "14 Aggregate Specialist Results",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "15 Append Agent Responses To Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "12 Call Specialist Sub-workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "12 Call Specialist Sub-workflow": {
+      "main": [
+        [
+          {
+            "node": "13 Normalise Specialist Result Envelope",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "13 Normalise Specialist Result Envelope": {
+      "main": [
+        [
+          {
+            "node": "11A Loop Over Specialist Requests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "14 Aggregate Specialist Results": {
+      "main": [
+        [
+          {
+            "node": "16 Build Executive Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "16 Build Executive Prompt": {
+      "main": [
+        [
+          {
+            "node": "17 Executive Editor LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "17A Gemini Executive Model": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "17 Executive Editor LLM": {
+      "main": [
+        [
+          {
+            "node": "18 Normalise Final Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "18 Normalise Final Response": {
+      "main": [
+        [
+          {
+            "node": "19 Send Final Telegram Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "19 Send Final Telegram Reply": {
+      "main": [
+        [
+          {
+            "node": "20 Prepare Conversation Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "20 Prepare Conversation Row": {
+      "main": [
+        [
+          {
+            "node": "21 Log Conversation To Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "21 Log Conversation To Sheet": {
+      "main": [
+        [
+          {
+            "node": "22 Prepare Activity Log Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "22 Prepare Activity Log Row": {
+      "main": [
+        [
+          {
+            "node": "23 Log Activity To Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "09 Supervisor LLM Analysis",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "17 Executive Editor LLM",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "b608bd13-7cd1-4c1d-a724-7495d6299a5f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "eff66c94d0ff0939f7e18d28ae839efbb431bd10e25f5dc561ade42030466155"
+  },
+  "nodeGroups": [],
+  "id": "gREnQissxgS8jXSv",
+  "tags": []
+}
